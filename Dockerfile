@@ -12,9 +12,10 @@ RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm inst
 
 COPY . .
 
-# 部署前缀：默认根级（每个插件占一级路径 /<id>/）。
-# 需要挂到子路径时传 --build-arg DOCS_BASE_PREFIX=/some-prefix。
-ARG DOCS_BASE_PREFIX=
+# 部署前缀：NitroWater 通过 BFF 以 /plugin/<id>/ 暴露本站，所以默认 /plugin。
+# VitePress 的 base 是**构建期写死**的，nginx rewrite 补救不了 —— 换前缀必须重建镜像。
+# 本地想直接看根路径（/<id>/）时传 --build-arg DOCS_BASE_PREFIX=。
+ARG DOCS_BASE_PREFIX=/plugin
 ENV DOCS_BASE_PREFIX=${DOCS_BASE_PREFIX}
 
 RUN npm run build
@@ -23,6 +24,9 @@ FROM nginx:1.27-alpine
 
 # 与 nitrowater/deploy/docker/docs-nginx.conf 的语义保持一致（.html 真文件 + 目录 index 兜底）
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+# 清掉 nginx 自带的 index.html / 50x.html：两处 conf 都把 `/` 定成 404，
+# 留着它们只会让 `/index.html` 露出默认欢迎页。
+RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
