@@ -1,0 +1,17 @@
+# 本地预览生产镜像（等价于部署进 nitrowater 的 docs 容器）
+#   docker compose up --build        ->  http://localhost:8085/velochatx/
+#   PORT=9000 docker compose up      ->  换宿主端口
+name: nitrowater-plugin-docs
+
+services:
+  docs:
+    build:
+      context: .
+      args:
+        DOCS_BASE_PREFIX: ${DOCS_BASE_PREFIX:-}
+    image: nitrowater-plugin-docs:local
+    container_name: nitrowater-plugin-docs
+    ports:
+      - "127.0.0.1:${PORT:-8085}:80"
+    restart: unless-stopped
+    mem_limit: 64m

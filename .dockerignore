@@ -1,0 +1,13 @@
+node_modules
+dist
+.gitignore
+.github
+.idea
+.omo
+.ai
+.codegraph
+.vscode
+plugins/**/docs/.vitepress/cache
+plugins/**/docs/.vitepress/dist
+npm-debug.log*
+*.local
