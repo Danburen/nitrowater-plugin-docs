@@ -2,7 +2,7 @@
   "name": "nitrowater-plugin-docs",
   "version": "0.1.0",
   "private": true,
-  "description": "NitroWater 插件文档站：多插件 VitePress 构建 -> 单个 nginx 静态镜像",
+  "description": "NitroWater 插件文档产物仓：多插件 VitePress 构建 -> 单个 nginx 静态镜像",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -13,9 +13,7 @@
     "build": "node scripts/build.mjs",
     "build:velochatx": "node scripts/build.mjs velochatx",
     "preview": "vitepress preview plugins/velochatx/docs",
-    "docker:build": "docker build -t nitrowater-plugin-docs:local .",
-    "docker:up": "docker compose up --build",
-    "docker:down": "docker compose down"
+    "docker:build": "docker build -t nitrowater-plugin-docs:local ."
   },
   "devDependencies": {
     "vitepress": "^1.6.3"

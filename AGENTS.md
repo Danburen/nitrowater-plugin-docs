@@ -5,16 +5,16 @@
 
 ## 1. 项目是什么
 
-NitroWater 生态的**插件文档聚合仓**：多个 Minecraft 插件各有一套 VitePress 文档，本仓负责
-「内容 + 构建 + 打包」，产出**一个 nginx 静态镜像**；镜像不独立对外，经 NitroWater 门户入口访问。
+NitroWater 生态的**插件文档产物仓**：多个 Minecraft 插件各有一套 VitePress 文档，本仓负责
+「内容 + 构建 + 打包」，产出**静态产物 + 一个 nginx 静态镜像**；运行、路由与部署全部由下游负责。
 
 关键点（先记住这 5 条）：
 
 1. **一个插件 = 一次 VitePress 构建**，因为 `base` 是构建期单值；多插件靠多次构建 + nginx 合并。
 2. `base` 必须**等于最终 URL 前缀**：默认根级 `/<id>/`，由 `DOCS_BASE_PREFIX`（默认空）+ 插件 id 推导。
 3. Markdown 内部链接写**站点绝对路径**（`/guide/...`），**禁止**手写 `/<id>/` 前缀。
-4. `cleanUrls: false`：产物是真实 `.html` 文件（部署契约，不要改）。
-5. 本仓**不生成**门户首页 / 清单 / 根跳转页；`/` 就是 404，入口由 NitroWater 门户负责。
+4. `cleanUrls: false`：产物是真实 `.html` 文件（产物契约，不要改）。
+5. 本仓**不生成**门户首页 / 清单 / 根跳转页；`/` 就是 404，入口由下游项目负责。
 
 ## 2. 目录与事实来源
 
@@ -26,7 +26,8 @@ NitroWater 生态的**插件文档聚合仓**：多个 Minecraft 插件各有一
 | nav/sidebar/主题 | `plugins/<id>/docs/.vitepress/theme/` |
 | 构建编排 | `scripts/build.mjs` |
 | 运行时 nginx 行为 | `docker/nginx.conf` |
-| 镜像构建 | `Dockerfile`、`docker-compose.yml`、`.github/workflows/docs.yml` |
+| 镜像构建 | `Dockerfile`（+ `docker/nginx.conf`） |
+| CI（构建 + 推镜像） | `.github/workflows/docs.yml` |
 | 项目理解 / 进度 | `.ai/PROJECT.md`、`.ai/context/current.md` |
 
 新增插件只动 `plugins/<id>/`（+ 必要时 `scripts` 的通用能力），**不要**为单个插件写特判。
@@ -39,20 +40,20 @@ npm run dev                # 所有插件；或 npm run dev:<id>
 npm run build              # 全部 -> dist/<id>/，URL = /<id>/
 DOCS_BASE_PREFIX=/docs npm run build   # 验证子路径布局 -> /docs/<id>/
 npm run preview            # VitePress preview（单插件）
-docker compose up --build  # 完整镜像预览 :8085 -> /velochatx/
+npm run docker:build       # 构建交付镜像 nitrowater-plugin-docs:local
 ```
 
 改完内容/配置的**最低验证**：`npm run build` 通过 + 抽查 `dist/<id>/index.html` 的资源路径以 `/<id>/` 开头。
 
-## 4. 部署契约（改动前先读）
+## 4. 产物与镜像契约（改动前先读）
 
 - 容器 root = 镜像内 `/usr/share/nginx/html` = 构建产物 `dist/`。
 - 磁盘布局 = URL 布局：`/usr/share/nginx/html/<id>/...` → `/<id>/...`。
-- 本仓**不提供**门户首页、清单或根跳转页：`/` 返回 404，入口由 NitroWater 门户负责。
+- 本仓**不提供**门户首页、清单或根跳转页：`/` 返回 404，入口由下游项目负责。
 - `try_files $uri $uri/ $uri/index.html =404`：**不做 SPA fallback**，404 必须真 404。
 - HTML/JSON 不缓存（发布即生效），带 hash 的静态资源长缓存。
-- NitroWater 侧需把 `/<id>/**` 转发到 docs 容器，并避开 SPA 路由（`/plugins`、`/login` 等）的命名空间；新增插件 = 新增目录 + 门户加一个入口。
-- 需要挂到子路径时统一用 `DOCS_BASE_PREFIX`，不要靠反向代理改写资源路径。
+- 需要挂到子路径时统一用 `DOCS_BASE_PREFIX` 重新构建，不要靠反向代理改写资源路径。
+- 部署编排（compose / 反向代理 / 门户入口）**不在本仓**，不要在这里加回来；本仓的 CI 只负责构建并推送镜像。
 
 ## 5. 内容与编码约定
 
@@ -86,7 +87,7 @@ codegraph explore "build.mjs dev.mjs plugin.json"
 
 ## 8. 常见任务清单
 
-**加插件**：`plugin.json` → 复制一套 `.vitepress` → 改标题/nav/sidebar → `npm run dev:<id>` → `npm run build`；门户侧只在 NitroWater 加一个指向 `/<id>/` 的入口。
+**加插件**：`plugin.json` → 复制一套 `.vitepress` → 改标题/nav/sidebar → `npm run dev:<id>` → `npm run build`。
 **改内容**：只改 `plugins/<id>/docs/`，站内链接不带 base，图片放 `docs/public/`（引用 `/xxx.svg`）。
 **改主题**：`theme/custom.css` 用 VitePress CSS 变量；跨插件通用样式先在本插件验证，再考虑抽到共享层（目前**未**抽象共享主题）。
 **升级 VitePress**：改根 `package.json` → `npm install` → `npm run build` 全量验证 → 抽查中英文首页与深层页。
@@ -94,7 +95,6 @@ codegraph explore "build.mjs dev.mjs plugin.json"
 - 资源 404 / 白屏 → 检查 `base` 是否与最终 URL 前缀一致（`dist/<id>/index.html` 里应有 `/<id>/assets/...`）。
 - 深层页面 404 → 检查链接是否被写成 `cleanUrls` 风格（无 `.html` 且无目录 index）。
 - 镜像内 404 → 检查 `docker/nginx.conf` 的 `try_files` 与产物路径。
-- 门户内 404 → 检查 NitroWater 是否把 `/<id>/**` 转发到 docs 容器（根路径 `/` 404 是预期行为）。
 
 ## 9. 不要做
 
