@@ -21,9 +21,10 @@ export const enThemeConfig = {
                 collapsed: false,
                 items: [
                     { text: 'Main Configuration', link: '/en/guide/config/main' },
-                    { text: 'Cross-Server Configuration', link: '/en/guide/config/cross-server-chat' },
-                    { text: 'Passive Broadcast', link: '/en/guide/config/passive-broadcast' },
-                    { text: 'Scheduled Broadcast', link: '/en/guide/config/active-broadcast' },
+                    { text: 'Servers & Channels', link: '/en/guide/config/cross-server-chat' },
+                    { text: 'Entry/Exit Broadcasts', link: '/en/guide/config/passive-broadcast' },
+                    { text: 'Scheduled Broadcasts', link: '/en/guide/config/active-broadcast' },
+                    { text: 'Config Maintenance', link: '/en/guide/config/maintenance' },
                 ]
             },
             {

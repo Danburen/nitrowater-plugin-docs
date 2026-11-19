@@ -1,56 +1,121 @@
-# Passive Broadcast Configuration
-The following configurations can be found and modified in `broadcast.md`.
+# Player Entry/Exit Broadcasts
 
-This page explains passive broadcast settings, which are triggered when players join/leave servers or the proxy.  
-For active/scheduled broadcasts, see [Scheduled Broadcast Configuration](/en/guide/config/active-broadcast).
+The following options live in `broadcast.yml`.
 
-## Join/Leave Message Broadcasts
-VeloChatX provides announcements when players:
-- `Leave the proxy`
-- `Switch sub-servers`
+This page covers broadcasts triggered by player actions: joining/leaving the proxy, entering/leaving a backend server, switching channels, and the welcome message on first join.
+For interval-based broadcasts see [Scheduled Broadcasts](/en/guide/config/active-broadcast).
 
-Key configuration properties:
+## Hierarchical entry broadcast `entry-broadcast`
 
-`join-leave-broadcast`: Triggers when players switch sub-servers (leave message to old server, join message to new server)
+Since 2.1 all player entry/exit messages are managed by `entry-broadcast`:
 
-`join-leave-proxy-broadcast`: Triggers when players fully connect/disconnect from the proxy (regardless of specific sub-server)
-
-Configuration structure:
 ```yaml
-join-leave-broadcast:
-  enable: true
+entry-broadcast:
+  # Print these messages to the console
   log-to-console: true
-  send-to-all-subServer: false
-  broadcast-in-channel: true
-  join-prefix: "§a(+)§r"
-  leave-prefix: "§c(-)§r"
-  player-join-message: "{Group}{Prefix}{Player}{Suffix} joined {Server}"
-  player-leave-message: "{Group}{Prefix}{Player}{Suffix} left {Server}"
+  # true: only the highest-priority message is sent for one movement
+  # false: send every applicable level
+  hierarchical-overlay: true
+
+  # Backend server join/leave
+  backend:
+    enable: true
+    scope: server
+    join-message: "§a(+)§r{Group}{Prefix}{Player}{Suffix} joined {channel}{Server}"
+    leave-message: "§c(-)§r{Group}{Prefix}{Player}{Suffix} left {channel}{Server}"
+
+  # Channel switch
+  channel:
+    enable: true
+    scope: channel
+    join-message: "§7(+)§r{Group}{Prefix}{Player}{Suffix} joined {channel}"
+    leave-message: "§7(-)§r{Group}{Prefix}{Player}{Suffix} left {channel}"
+
+  # Proxy join/leave
+  proxy:
+    enable: true
+    scope: proxy
+    join-message: "§7[+]§r{Group}{Prefix}{Player}{Suffix} joined {Proxy}"
+    leave-message: "§7[-]§r{Group}{Prefix}{Player}{Suffix} left {Proxy}"
 ```
-```yaml
-join-leave-proxy-broadcast:
-  enable: true
-  log-to-console: true
-  send-to-all-subServer: true
-  join-prefix: "§a[+]§r"
-  leave-prefix: "§c[-]§r"
-  player-join-message: "{Group}{Prefix}{Player}{Suffix} connected to {Proxy}"
-  player-leave-message: "{Group}{Prefix}{Player}{Suffix} disconnected from {Proxy}"
-```
 
-Key properties:
-- `join-prefix`/`leave-prefix`: Message prefixes
-- `log-to-console`: Whether to output messages to console
-- `send-to-all-subServer`: Broadcasts to all sub-servers (overrides `broadcast-in-channel`)
-- `broadcast-in-channel`: Broadcasts within the server's channel
+### When each block fires
 
-## Welcome Message Broadcast
-VeloChatX can send welcome messages when players join the proxy.
+| Block | Trigger | Delivery |
+|---|---|---|
+| `proxy` | Player logs in / disconnects from the proxy | Always to the whole proxy |
+| `channel` | Player moves from channel A to channel B | Controlled by `scope` |
+| `backend` | Player enters / leaves a backend server | Controlled by `scope` |
 
-Configuration structure:
+One movement can satisfy several levels. For example, moving from a login server to a survival server also switches channels:
+
+- `hierarchical-overlay: true`: only the higher-priority **channel** message is sent; the backend message is suppressed;
+- `hierarchical-overlay: false`: both channel and backend messages are sent.
+
+Priority is **channel switch > backend join/leave**. `proxy` login/disconnect is independent and unaffected by `hierarchical-overlay`.
+
+> [!NOTE]
+> On a player's first connection, both the `proxy` join message and one `backend` join message usually fire.
+> Disable one block, or keep only the level you want with `hierarchical-overlay: true`.
+
+### `scope`: who receives it
+
+For `backend` and `channel`:
+
+| Value | Delivery |
+|---|---|
+| `server` | Only the target backend (the new server on join / the old server on leave) |
+| `channel` | All servers in the target server's channel |
+| `proxy` | All players on the proxy |
+
+`proxy` entry/exit messages are always proxy-wide; its `scope: proxy` only keeps the structure uniform.
+
+### Message templates
+
+`join-message` / `leave-message` support the same placeholders as chat formats:
+
+- `{Player}`, `{Prefix}`, `{Suffix}`, `{Group}`: resolved from the player;
+- `{Server}`, `{channel}`: resolved from the **message's server** (the new server on join, the old one on leave);
+- `{Proxy}`: proxy display name.
+
+> [!WARNING]
+> Do not split the prefix into the old `join-prefix` / `player-join-message` pair.
+> 2.1 merged them into one template; `config migration` converts the legacy keys automatically.
+
+## Welcome message `welcome-broadcast`
+
 ```yaml
 welcome-broadcast:
   enable: true
+  # Only send on the player's first join
   only-first-join: false
   message: "Welcome to §5our network§r!"
 ```
+
+- `enable`: whether to send the welcome message.
+- `only-first-join`:
+  - `false`: every login;
+  - `true`: only when the player first appears in the database.
+- `message`: text, player and server placeholders supported.
+
+> [!NOTE]
+> Despite the name, this message is sent **only to the joining player**, not to the whole server.
+> "First join" is tracked in the plugin database; deleting it makes everyone a first-time player again.
+
+## Upgrading from 2.0
+
+`join-leave-broadcast` and `join-leave-proxy-broadcast` were merged into `entry-broadcast` in 2.1. Run:
+
+```text
+/velochatx config migration broadcast
+```
+
+The migration:
+
+- merges the old server join/leave switches, prefixes and messages into `entry-broadcast.backend`;
+- derives `scope` from `broadcast-in-channel` / `send-to-all-subServer`;
+- moves `join-leave-proxy-broadcast` to `entry-broadcast.proxy`;
+- removes the legacy sections.
+
+> [!TIP]
+> Preview first with `/velochatx config migration broadcast --dry-run`.

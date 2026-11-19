@@ -19,7 +19,7 @@ hero:
 features:
   - icon: 🧰
     title: Multi-functional
-    details: Based on Velocity API, enables cross-server player chat with features like zone chat, broadcasts, cross-server private messages, prohibited word filtering, and cross-server muting
+    details: Based on Velocity API, enables cross-server player chat with features like channel chat, broadcasts, cross-server private messages, banned word filtering, and player blocking
   - icon: ⛳
     title: Easy to Use
     details: Ready to use out of the box with minimal configuration, and you can disable any features you don't need

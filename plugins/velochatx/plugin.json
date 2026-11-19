@@ -1,7 +1,7 @@
 {
   "id": "velochatx",
   "name": "VeloChatX",
-  "description": "Velocity 跨服聊天插件：跨服私聊、区域频道、广播、屏蔽词与跨服禁言。",
+  "description": "Velocity 跨服聊天插件：跨服私聊、频道、广播、违禁词过滤与玩家屏蔽。",
   "descriptionEn": "A versatile Velocity cross-server chat plugin.",
   "repo": "https://github.com/Danburen/VeloChatX",
   "status": "stable",

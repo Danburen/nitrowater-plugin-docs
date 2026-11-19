@@ -28,6 +28,7 @@ NitroWater 生态的**插件文档产物仓**：多个 Minecraft 插件各有一
 | 运行时 nginx 行为 | `docker/nginx.conf` |
 | 镜像构建 | `Dockerfile`（+ `docker/nginx.conf`） |
 | CI（构建 + 推镜像） | `.github/workflows/docs.yml` |
+| GitHub Pages（静态发布） | `.github/workflows/pages.yml` |
 | 项目理解 / 进度 | `.ai/PROJECT.md`、`.ai/context/current.md` |
 
 新增插件只动 `plugins/<id>/`（+ 必要时 `scripts` 的通用能力），**不要**为单个插件写特判。
@@ -53,7 +54,9 @@ npm run docker:build       # 构建交付镜像 nitrowater-plugin-docs:local
 - `try_files $uri $uri/ $uri/index.html =404`：**不做 SPA fallback**，404 必须真 404。
 - HTML/JSON 不缓存（发布即生效），带 hash 的静态资源长缓存。
 - 需要挂到子路径时统一用 `DOCS_BASE_PREFIX` 重新构建，不要靠反向代理改写资源路径。
-- 部署编排（compose / 反向代理 / 门户入口）**不在本仓**，不要在这里加回来；本仓的 CI 只负责构建并推送镜像。
+- GitHub Pages 属于**唯一在仓内完成的发布**：`pages.yml` 以 `DOCS_BASE_PREFIX=nitrowater-plugin-docs` 构建并发布 `dist/`；
+  仍然**不生成**门户首页/清单/根跳转页，Pages 仓库根同样是 404。
+- 运行编排（compose / 反向代理 / 门户入口）**不在本仓**；镜像 CI 只负责构建并推送。
 
 ## 5. 内容与编码约定
 
@@ -95,6 +98,8 @@ codegraph explore "build.mjs dev.mjs plugin.json"
 - 资源 404 / 白屏 → 检查 `base` 是否与最终 URL 前缀一致（`dist/<id>/index.html` 里应有 `/<id>/assets/...`）。
 - 深层页面 404 → 检查链接是否被写成 `cleanUrls` 风格（无 `.html` 且无目录 index）。
 - 镜像内 404 → 检查 `docker/nginx.conf` 的 `try_files` 与产物路径。
+- Pages 资源 404 → 检查 `pages.yml` 的 `DOCS_BASE_PREFIX` 是否等于仓库名（项目站点路径 `/<repo>/<id>/`）。
+- Pages 首次发布失败 → 仓库 `Settings → Pages` 的 `Source` 必须为 **GitHub Actions**。
 
 ## 9. 不要做
 

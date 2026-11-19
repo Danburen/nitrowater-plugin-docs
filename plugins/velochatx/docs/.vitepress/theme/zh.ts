@@ -21,9 +21,10 @@ export const zhThemeConfig = {
                 collapsed: false,
                 items:[
                     { text: '主配置',link: '/guide/config/main' },
-                    { text: '跨服配置',link: '/guide/config/cross-server-chat' },
-                    { text: '被动广播配置',link: '/guide/config/passive-broadcast' },
-                    { text: '定时广播配置',link: '/guide/config/active-broadcast' },
+                    { text: '服务器与频道',link: '/guide/config/cross-server-chat' },
+                    { text: '玩家进出广播',link: '/guide/config/passive-broadcast' },
+                    { text: '定时广播',link: '/guide/config/active-broadcast' },
+                    { text: '配置维护与升级',link: '/guide/config/maintenance' },
                 ]
             },
             {

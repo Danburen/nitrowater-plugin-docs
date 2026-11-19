@@ -1,30 +1,34 @@
-# Scheduled Broadcast Configuration
-The following configurations can be found and modified in `broadcast.md`.
+# Scheduled Broadcasts
 
-This page explains scheduled broadcasts triggered by the plugin's `built-in timer`, designed to periodically send messages like beginner guides or game tips.  
-For passive broadcasts triggered by player join/leave events, see [Passive Broadcast Configuration](/en/guide/config/passive-broadcast).
+The following options live in `broadcast.yml`.
 
-## Prerequisites
-VeloChatX uses a `Hybrid Broadcast` model to manage scheduled messages, ensuring isolated game services across different channels while adapting to partitioned chat modes.
+This page covers interval-based broadcasts driven by the plugin's timer, used for beginner tips, event notices and similar recurring messages.
+For player-triggered messages see [Player Entry/Exit Broadcasts](/en/guide/config/passive-broadcast).
 
-The `Hybrid Broadcast` consists of:
-- `Global Broadcast` (server-wide)
-- `Local Broadcast` (channel-specific)
+## How it works
 
-When sending scheduled broadcasts, VeloChatX:
-1. Finds channel-specific messages (`Local Broadcast`) for matched servers
-2. Merges them with `Global Broadcast` messages (if both enabled)
-3. Randomly selects from the combined pool for broadcasting
+Each cycle, for every server:
 
-Configure the interval via `interval` property (in seconds).
+1. collect the messages available to that server: global messages + messages from the channels it belongs to;
+2. merge and de-duplicate them;
+3. randomly pick one message and prepend the effective prefix;
+4. send it once **per server** (not once per player).
+
+```yaml
+# Broadcast interval in seconds
+interval: 120
+```
+
+- `interval` must be greater than `0`. Setting `0` or a negative value **disables scheduled broadcasts** and logs a warning.
+- `random` is reserved; the current version always picks one message at random from the merged pool each cycle.
+- With a large player base, increase the interval to reduce overhead.
 
 > [!TIP]
-> Scheduled broadcasts target all players across servers. For large player bases, increase the interval to reduce performance impact.
+> Player placeholders such as `{Player}` do not work in scheduled broadcasts because there is no player context.
+> Use server placeholders (`{server}`, `{channel}`, `{proxy}`, `{online}`, ...).
 
-## Global Broadcast
-Configured under `global` property for server-wide messages (unaffected by channel broadcasts), typically used for announcements like official groups or server updates.
+## Global broadcast
 
-Example configuration:
 ```yaml
 global:
   enable: true
@@ -32,25 +36,16 @@ global:
   message-list:
     - "Welcome to {proxy}! Join our adventure!"
     - "Daily §aactive§r players may receive rewards!"
-    - "§cNotice:§r Please follow server rules."
-    - "§fEnjoy our §9custom plugins§r for unique gameplay!"
-    - "§dVarious§r §agame modes§r available!"
-    - "§7Join our §bQQ Group§r for latest updates!"
-    - "§fNew players§r, ask admins for help!"
-    - "§eInvite friends to §gplay§r together!"
+    - "§cNotice:§r Please follow the server rules."
     - "§aWelcome to §7{server}§r, enjoy your stay!"
-    - "§5Server-wide§r §cevent§r starting soon!"
-    - "§dThanks for your support! We'll keep improving!"
 ```
-- `prefix`: Message prefix for all global broadcasts
 
-> [!IMPORTANT]
-> When enabled, `message-list` content merges (global messages prioritized).
+- `enable`: whether global broadcasts are active.
+- `prefix`: prefix for global messages.
+- `message-list`: the message pool. When enabled, it is **merged** with per-channel messages (global messages first).
 
-## Channel-Specific Broadcast
-Configured under `locale` field. When global broadcast is disabled, only matched servers receive broadcasts.
+## Per-channel broadcast
 
-Example configuration:
 ```yaml
 locale:
   enable: true
@@ -61,35 +56,49 @@ locale:
       message-list:
         - "Server is §aunder construction§r, more content coming!"
         - "§6Welcome§r to our official group"
-        - "Welcome to our server community"
-        - "§dVarious§r §agame modes§r available!"
+      # Match by channel
       channel-list:
         - login
+      # Match by server id (may be empty)
       server-list:
-        -
+        - lobby
     example2:
       enable: false
       prefix: "[§aServerBot§r] §8:§r"
       message-list:
-        - "Server is §aunder construction§r, more content coming!"
-        - "§6Welcome§r to our official group"
-        - "Welcome to our server community"
         - "§bStarter zone§r is open! Begin your adventure!"
       channel-list:
         - lobby
         - games
-        - survive
-      server-list:
-        -
+      server-list: []
 ```
-Key fields:
-- `broadcast-list`: Channel-specific broadcast configurations
-- Sub-properties (`example1`, `example2`): Channel group names
-- `channel-list` & `server-list`: Target channels/servers
-- `prefix`: Custom prefix per channel group
 
-> [!TIP]
-> - Duplicate **channel broadcast** names load only the first occurrence
-> - For channels/servers in multiple **channel broadcasts**:
-    >   * Only the last `prefix` applies
->   * Duplicate messages merge (no increased frequency)
+- `enable`: whether per-channel broadcasts are active.
+- `broadcast-list`: a set of broadcast groups; the keys (`example`, `example2`) are just identifiers.
+- `channel-list`: channels covered by this group — every server in those channels receives it.
+- `server-list`: extra server IDs covered by this group (must match `velocity.toml` / `server.list`); may be empty.
+- `prefix`: prefix for this group.
+
+### Merge and precedence
+
+- Global and per-channel messages merge only when both `global.enable` and `locale.enable` are `true`.
+- A per-channel `prefix` **overrides** the global prefix for servers that match it.
+- When several groups match one server:
+  - the **last** matching group's `prefix` wins;
+  - messages merge, and duplicates are kept once, so duplication does not increase the chance of appearing.
+- Groups with the same name: only the first is read.
+
+> [!NOTE]
+> A server matched by both `server-list` and `channel-list` is not sent twice; messages are de-duplicated into one pool.
+
+## Upgrading from an older version
+
+`broadcast.yml` also carries `config-version: 2.1.0`. When upgrading from 2.0:
+
+```text
+/velochatx config migration broadcast
+/velochatx config update broadcast
+/velochatx reload
+```
+
+This migrates the legacy entry/exit structure, adds new keys, and applies the new interval immediately.

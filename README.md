@@ -1,11 +1,12 @@
 # nitrowater-plugin-docs
 
-NitroWater 生态的**插件文档产物仓**：只负责「文档源 → 静态产物 → 镜像」，不包含部署编排，也不独立对外提供服务。
+NitroWater 生态的**插件文档产物仓**：负责「文档源 → 静态产物 → 镜像」，并额外把产物发布到 GitHub Pages 作为在线预览。
 
 - 内容源：`plugins/<plugin-id>/docs/`（每个插件一套 VitePress 站点，各自一个 `base`）
 - 静态产物：`dist/<plugin-id>/...` → URL `/<plugin-id>/...`
 - 交付物：一个 nginx 静态镜像（`Dockerfile`），由下游（NitroWater）负责运行与路由
-- 本仓**不生成**门户首页、清单、根跳转页；`/` 是 404，入口由下游决定
+- GitHub Pages：`https://<owner>.github.io/nitrowater-plugin-docs/<plugin-id>/`
+- 本仓**不生成**门户首页、清单、根跳转页；`/`（含 Pages 的仓库根）是 404，入口由下游决定
 
 ## 快速开始
 
@@ -18,6 +19,10 @@ npm run dev                 # 只起一个：npm run dev:velochatx
 
 # 构建静态产物到 dist/
 npm run build
+
+# 按 GitHub Pages 的子路径构建（Windows PowerShell）
+$env:DOCS_BASE_PREFIX="nitrowater-plugin-docs"; npm run build
+# -> dist/nitrowater-plugin-docs/velochatx/ -> /nitrowater-plugin-docs/velochatx/
 
 # 构建交付镜像
 npm run docker:build        # nitrowater-plugin-docs:local
@@ -42,13 +47,15 @@ nitrowater-plugin-docs/
 │  └─ dev.mjs                     # 多站点并行 dev server
 ├─ docker/nginx.conf              # 镜像内 nginx 配置
 ├─ Dockerfile                     # 两阶段构建：node 构建 -> nginx 托管
+├─ .github/workflows/docs.yml     # CI：构建镜像并推送 GHCR
+├─ .github/workflows/pages.yml    # CI：构建静态产物并发布 GitHub Pages
 ├─ dist/                          # 构建产物（gitignore）
 └─ .ai/                           # AI 协作上下文（PROJECT.md + context/）
 ```
 
 ## 产物与 base 契约
 
-**一个插件 = 一次 VitePress 构建**：VitePress 的 `base` 是构建期单值，所以多插件必须拆成多次构建，产物再由 nginx 合并成一棵树。本仓只负责把树和镜像做出来。
+**一个插件 = 一次 VitePress 构建**：VitePress 的 `base` 是构建期单值，所以多插件必须拆成多次构建，产物再由 nginx / Pages 合并成一棵树。本仓只负责把树、镜像和 Pages 产物做出来。
 
 ```
 默认（根级）：
@@ -58,6 +65,11 @@ nitrowater-plugin-docs/
 需要子路径时：
   DOCS_BASE_PREFIX=/docs npm run build
   plugins/velochatx  ->  dist/docs/velochatx/  ->  /docs/velochatx/
+
+GitHub Pages（项目站点）：
+  DOCS_BASE_PREFIX=nitrowater-plugin-docs npm run build
+  plugins/velochatx  ->  dist/nitrowater-plugin-docs/velochatx/
+                     ->  /nitrowater-plugin-docs/velochatx/
 ```
 
 - `base` 必须**等于最终 URL 前缀**，由 `VITEPRESS_BASE` 或 `DOCS_BASE_PREFIX` + 插件 id 自动推导。
@@ -91,16 +103,24 @@ docker run --rm -p 8085:80 nitrowater-plugin-docs:local
 
 - 镜像：`ghcr.io/<owner>/nitrowater-plugin-docs:latest` 和 `:<commit 前 7 位>`
 - 凭据：`GITHUB_TOKEN`（已声明 `packages: write`），无需额外 secret
-- 部署、反向代理、入口登记不在本仓；下游按需 `docker pull` 即可
+- 反向代理、门户入口不在本仓；下游按需 `docker pull` 即可
 
 ```bash
 docker pull ghcr.io/<owner>/nitrowater-plugin-docs:latest
 ```
 
+`.github/workflows/pages.yml`：push `main`（或手动触发）→ `npm ci` → 以 `DOCS_BASE_PREFIX=nitrowater-plugin-docs` 构建 → 发布 GitHub Pages。
+
+- 访问地址：`https://danburen.github.io/nitrowater-plugin-docs/velochatx/`
+- 首次使用需在仓库 `Settings → Pages` 把 `Source` 设为 **GitHub Actions**
+- 仓库根（`/nitrowater-plugin-docs/`）按约定返回 404，不生成门户首页
+- 工作流使用 `fetch-depth: 0`，否则 `lastUpdated` 读不到 git 历史
+
 ## 与 `webs/velochatx-docs` 的关系
 
-本仓的 `plugins/velochatx/docs/` 是 `velochatx-docs` 内容的迁移副本，之后 **以本仓为准**。
-`velochatx-docs` 继续作为其独立 GitHub Pages 站点时，需要保持 `VITEPRESS_BASE` 兼容（该站点原有默认 base 为 `/VeloChatX-Docs/`）。
+`plugins/velochatx/docs/` 最初迁移自 `webs/velochatx-docs`，此后**以本仓为准**。
+旧仓已归档（archived），其独立 GitHub Pages 站点的 `base`（`/VeloChatX-Docs/`）只作为历史参考；
+本仓的 Pages 站点路径为 `/nitrowater-plugin-docs/velochatx/`，构建时由 `DOCS_BASE_PREFIX` 推导。
 
 ## 长周期约定
 

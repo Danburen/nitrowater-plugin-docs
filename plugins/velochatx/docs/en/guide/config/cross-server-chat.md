@@ -1,24 +1,120 @@
-# Cross-Server Chat and Channel Configuration
-The following configurations can be found and modified in `config.yml`.
+# Cross-Server Chat and Channels
 
-## Configuring Velocity Server Links
-Under `config.yml`, you'll find the `server-display` property.
+This page explains how to connect Velocity backends to VeloChatX and how to group players with channels.
 
-This property's keys correspond to the `[server]` properties in Velocity's configuration file.
-The `key values` typically look like:
+Two sections in `config.yml` are involved:
+
+| Section | Purpose |
+|---|---|
+| `server` | Each backend's **display name** and **channels** (server-centric) |
+| `channels` | Channel **metadata**: display name, welcome message, and global mode (channel-centric) |
+
+## Three IDs must match
+
+Before configuring, make sure these three places use exactly the same server IDs (**case-sensitive**):
+
+1. Keys under `[servers]` in `velocity.toml`;
+2. Keys under `server.list` in `config.yml`;
+3. Channel names under `channels.channel-list` (channels and server IDs are different namespaces).
+
 ```toml
+# velocity.toml
 [servers]
-# Configure your servers here. Each key represents the server's name, and the value
-# represents the IP address of the server to connect to.
 lobby = "127.0.0.1:25565"
 server1 = "127.0.0.1:25566"
 server2 = "127.0.0.1:25567"
 ```
-Here `lobby`, `server1`, and `server2` represent the server `keys` for each sub-server.
 
-VeloChatX reads these configurations by matching these `keys` to Velocity's sub-servers,
-then translating them (`key->value`). When players send messages in-game,
-placeholders like `{server}` and `{proxy}` will be replaced with the corresponding names below:
+## Server display names and bindings
+
+The recommended form keeps display names and channel membership in one place:
+
+```yaml
+server:
+  # Enable display names
+  display-enable: true
+  # Proxy display name, used by {proxy}
+  proxy: "[§5Proxy§r]"
+  list:
+    lobby:
+      display: "[§dLobby§r]"
+      channels:
+        - login
+    server1:
+      display: "[§3MiniGames§r]"
+      channels:
+        - games
+    server2:
+      display: "[§2Survival§r]"
+      channels:
+        - survive
+```
+
+- `display-enable`:
+  - `true`: display names are active. A backend not declared in `server.list` renders `{server}` as `[raw-id]`;
+  - `false`: `{server}` renders the raw ID.
+- `proxy`: output of `{proxy}`; also used as the sender name when the console sends a private message.
+- `list.<id>.display`: display name. Colour codes and brackets are allowed; the plugin does not wrap it again.
+- `list.<id>.channels`: channels this server belongs to (one or more). Channel display names and welcome texts live under `channels`.
+
+> [!WARNING]
+> Channel names in `list.<id>.channels` must exist under `channels.channel-list`; unknown names are ignored and `{channel}` stays empty.
+
+> [!WARNING]
+> Keys under `server.list` must match `[servers]` in `velocity.toml` exactly.
+> A wrong case produces a `PHANTOM` server that can never match a real backend.
+
+### Undeclared servers
+
+- `display-enable: true`: `{server}` renders `[raw-id]`;
+- `display-enable: false`: `{server}` renders the raw ID;
+- `{channel}` is empty (the server belongs to no channel);
+- Startup prints binding notices; use `/vcx status` for details.
+
+## Channels and isolation
+
+A channel only defines how it is displayed and what players see on entry; membership lives in `server.list`:
+
+```yaml
+channels:
+  # true: every server can talk to every server; channels only affect display
+  # false: only servers in a shared channel can talk to each other
+  global: true
+
+  channel-list:
+    login:
+      display: "[§6Login§r]"
+      welcome:
+        enable: true
+        message: "Welcome to the login channel"
+    games:
+      display: "[§6MiniGames§r]"
+      welcome:
+        enable: true
+        message: "Welcome to the mini-games channel"
+    survive:
+      display: "[§6Survival§r]"
+      welcome:
+        enable: true
+        message: "Welcome to the survival channel"
+```
+
+- `global: true`: cross-server chat is forwarded between all servers; channels only affect `{channel}` and welcome messages.
+- `global: false`: messages are forwarded only between servers that share at least one channel.
+  - Servers in no channel cannot communicate; startup prints a warning.
+  - Private messages and mentions are never restricted by channels.
+- `display`: channel display name used by `{channel}` and `/vcx show-channel-info`.
+- `welcome`: a message sent **to the player** when they enter a server in this channel:
+  - `enable`: whether to send it;
+  - `message`: text, placeholders supported.
+
+> [!NOTE]
+> A server can belong to several channels. In that case `{channel}` shows the **first matching channel** in configuration order.
+> Two servers can communicate when they share any channel.
+
+## Legacy configuration and migration
+
+Before 2.1 the layout was channel-centric:
 
 ```yaml
 server-display:
@@ -26,61 +122,55 @@ server-display:
   proxy: "[§5Proxy§r]"
   display:
     lobby: "[§dLobby§r]"
-    server1: "[§3MiniGames§r]"
-    server2: "[§2Survival§r]"
-    # Add more below, matching Velocity's configuration
-```
-The `proxy` field represents the proxy server (Velocity Console), which can send
-[mentions](/en/reference/cmdsAndPerms#mention-command) or [private messages](/en/reference/cmdsAndPerms#message-command)
-to players via [commands](/en/reference/cmdsAndPerms).
 
-> [!WARNING]
-> If a player sends a message from a server not listed below, the `server` placeholder
-> will be forcibly converted to `UNKNOWN` or `未知`.
-
-## Configuring Channel-based Chat
-In the configuration file, you'll find the `channels` property with this structure:
-
-```yaml
 channels:
-  global: true
   channel-list:
     login:
-      display: "[§6Login§r]"
-      welcome:
-        enable: true
-        message: "Welcome to the Login Channel"
       servers:
         - lobby
-    games:
-      display: "[§6MiniGames§r]"
-      welcome:
-        enable: true
-        message: "Welcome to MiniGames Channel"
-      servers:
-        - server1
-    survive:
-      display: "[§6Survival§r]"
-      welcome:
-        enable: true
-        message: "Welcome to Survival Channel"
-      servers:
-        - server2
-    # Add more channels following the same format
 ```
-The `global` property determines whether all channels communicate globally (no isolation).
-When set to `false`, channels become isolated (messages won't cross channels),
-though this doesn't affect **cross-server private messages and mentions**.
 
-Each entry under `servers` corresponds to the Velocity sub-server keys mentioned [above](#configuring-velocity-server-links).
+2.1 still reads the legacy keys for a smooth upgrade:
 
-> [!INFO]
-> Important notes:
-> - A channel can include multiple sub-servers
-> - A server can belong to multiple channels
->
-> VeloChatX processes message intersections between channels before forwarding.
+- `server-display.display.<id>` takes precedence **per id** over `server.list.<id>.display`;
+- `server-display.proxy` over `server.proxy`;
+- `server-display.enable` over `server.display-enable`;
+- If **any** `channels.channel-list.<name>.servers` is a non-empty list, the whole file is treated as legacy:
+  - `server.list.*.channels` is **ignored as a whole**;
+  - membership comes from `channel-list.*.servers`;
+  - per-server `display` still applies.
 
 > [!TIP]
-> - If multiple channels share the same name, only the first one takes effect
-> - Servers not listed in `channels` default to global chat, with `{channel}` showing blank
+> Mixing old and new forms is the usual reason "the new key does nothing".
+> Once you are ready, run `/velochatx config migration config` to move legacy keys to the new structure and remove them.
+
+## Startup checks and `/vcx status`
+
+At startup the plugin checks bindings, channel membership and Velocity registrations, and prints problems. Admins can run:
+
+```text
+/velochatx status
+```
+
+It reports:
+
+- declared servers vs. Velocity-registered / unregistered;
+- channel count;
+- broadcast message count (global / per-channel);
+- binding state per server:
+
+| State | Meaning | Action |
+|---|---|---|
+| `BOUND` | Declared and registered in Velocity | OK |
+| `UNBOUND` | Registered in Velocity but not declared | Add it to `server.list`, or ignore (raw ID) |
+| `PHANTOM` | Declared but not registered in Velocity | Check the ID and its case |
+
+Common notices:
+
+- **channel references an unknown server**: that member is dropped and `{channel}` may be empty;
+- **channel has no valid servers**: the channel is empty;
+- **server belongs to no channel**: with `global: false` it cannot use cross-server chat;
+- **legacy binding detected**: run the config migration.
+
+> [!TIP]
+> `/vcx show-channel-info` lists channels with their online player counts; the count is the total across all servers in that channel.

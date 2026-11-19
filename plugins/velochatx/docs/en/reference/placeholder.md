@@ -1,38 +1,96 @@
 # Placeholder Reference
-VeloChatX provides a series of built-in placeholders to display information about players, servers, or proxy messages.
-Below is a reference table of these placeholders.
+
+VeloChatX ships a set of built-in placeholders for chat formats, tab lists, broadcasts and messages.
+They can be used in `config.yml`, `broadcast.yml` and `message.yml`.
+
+## Syntax
+
+- Wrap the name in braces: `{player}`;
+- `%name%` is also accepted: `%player%` equals `{player}`;
+- Names are **case-insensitive**: `{Server}` equals `{server}`;
+- Only placeholders that the current context can resolve are replaced.
 
 > [!TIP]
-> In-game, you can try using the `/vcx placeholder <placeholder>` command to preview placeholder displays.
+> In game, `/vcx placeholder <text>` previews the resolution of a whole line (requires `velochatx.admin.placeholder`, in-game only).
+
+## Server placeholders
+
+For contexts with a server: broadcasts, tab list header/footer, server messages.
+
+| Placeholder | Description |
+|---|---|
+| `{server}` | Display name from `server.list.<id>.display` |
+| `{channel}` | Display name of the server's channel; empty when none |
+| `{proxy}` | Proxy display name from `server.proxy` |
+| `{online}` | Online count of the current server; `0` when unknown |
+| `{total_online}` | Online count across the whole proxy |
+
+## Player placeholders
+
+For contexts with a player: chat, private messages, mentions, tab list entries.
+
+| Placeholder | Description |
+|---|---|
+| `{player}` | Player name |
+| `{prefix}` | Player prefix (LuckPerms) |
+| `{suffix}` | Player suffix (LuckPerms) |
+| `{group}` | Player group (LuckPerms) |
+| `{ping}` | Player latency in milliseconds |
+
+> [!NOTE]
+> `{prefix}` / `{suffix}` convert LuckPerms `&` colour codes to `§`, so colours render in chat, tab list and broadcasts.
+
+## Dynamic counts
+
+| Placeholder | Description |
+|---|---|
+| `{<channel>_channel_online}` | Online count of a specific channel |
+
+For a channel named `login`:
+
+```text
+Login channel online: {login_channel_online}
+```
+
+The channel name must match a key under `channels.channel-list`; a missing channel shows `0`.
+
+## Context limits
 
 > [!IMPORTANT]
-> Player-specific placeholders only work in **player contexts**, otherwise they won't be populated.
->
-> Server-specific placeholders only work in **server contexts** (supported in most cases except for a few specific scenarios).
+> - Player placeholders only resolve in a **player context** (chat, private message, tab entry);
+> - Server placeholders only resolve in a **server context** (scheduled broadcast, tab header/footer);
+> - Scheduled broadcasts have no player, so do not use `{player}`, `{ping}` there.
 
-> The following placeholders apply to server-side displays (server broadcasts, etc.) and player-side displays (player chats, tab lists, etc.).
+## Examples
 
-| No. | Placeholder      | Description                             |
-|-----|------------------|-----------------------------------------|
-| 1   | `{channel}`      | Current server's channel                |
-| 2   | `{server}`       | Current server's display name           |
-| 3   | `{proxy}`        | Proxy server name                       | 
-| 4   | `{online}`       | Current server's online count           | 
-| 5   | `{total_online}` | Total online players across all servers |
+### Chat format
 
-> The following placeholders apply to player-side displays (player chats, tab lists, etc.).
+```yaml
+chat-format: "{channel}{Group}{Server}{Prefix}{Player}{Suffix} §8:§r {Message}"
+```
 
-| No. | Placeholder     | Description               |
-|-----|-----------------|---------------------------|
-| 1   | `{player}`      | Current player's name     |
-| 2   | `{prefix}`      | Current player's prefix   |
-| 3   | `{suffix}`      | Current player's suffix   | 
-| 4   | `{group}`       | Current player's group    | 
-| 5   | `{ping}`        | Current player's ping     | 
+### Tab list
 
-> The following are universal placeholders that work in all contexts.
+```yaml
+tab-list:
+  format: "{server}{prefix}{player}{Suffix}"
+  header: "Welcome to {proxy} | Current server: {server}"
+  footer: "Online §8{online}§r / §8{total_online}§r | Login channel §8{login_channel_online}§r | Ping §8{ping}"
+```
 
-| No. | Placeholder            | Description                         |
-|-----|------------------------|-------------------------------------|
-| 1   | `{xxx_channel_online}` | Online count for a specific channel |
-| 2   | `{xxx_server_online}`  | Online count for a specific server  |
+### Scheduled broadcast
+
+```yaml
+global:
+  message-list:
+    - "Welcome to {server}, {total_online} players online"
+    - "{channel} event starting soon!"
+```
+
+### Entry broadcast
+
+```yaml
+entry-broadcast:
+  backend:
+    join-message: "§a(+)§r{Prefix}{Player}{Suffix} joined {channel}{Server}"
+```
