@@ -31,6 +31,12 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # Create the Pages site on the first run when it is not enabled yet.
+          # Requires the `pages: write` permission declared above.
+          # If an organization policy blocks this, enable Pages manually:
+          # Settings → Pages → Source = GitHub Actions.
+          enablement: true
 
       - run: npm ci --no-audit --no-fund
 
@@ -38,8 +44,16 @@ jobs:
         env:
           # Project Pages are served under https://<owner>.github.io/<repo>/,
           # so every plugin site lives at /<repo>/<plugin-id>/.
+          # DOCS_OUT_ROOT keeps the artifact root == site root (no duplicated repo segment).
           DOCS_BASE_PREFIX: nitrowater-plugin-docs
+          DOCS_OUT_ROOT: dist
         run: npm run build
+
+      - name: Generate landing page
+        env:
+          DOCS_BASE_PREFIX: nitrowater-plugin-docs
+          DOCS_OUT_ROOT: dist
+        run: npm run pages:landing
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -6,7 +6,7 @@
 ## 1. 项目是什么
 
 NitroWater 生态的**插件文档产物仓**：多个 Minecraft 插件各有一套 VitePress 文档，本仓负责
-「内容 + 构建 + 打包」，产出**静态产物 + 一个 nginx 静态镜像**；运行、路由与部署全部由下游负责。
+「内容 + 构建 + 打包」，产出**静态产物 + 一个 nginx 静态镜像**，并在 GitHub Pages 发布在线预览；运行、反向代理与门户入口由下游负责。
 
 关键点（先记住这 5 条）：
 
@@ -14,7 +14,7 @@ NitroWater 生态的**插件文档产物仓**：多个 Minecraft 插件各有一
 2. `base` 必须**等于最终 URL 前缀**：默认根级 `/<id>/`，由 `DOCS_BASE_PREFIX`（默认空）+ 插件 id 推导。
 3. Markdown 内部链接写**站点绝对路径**（`/guide/...`），**禁止**手写 `/<id>/` 前缀。
 4. `cleanUrls: false`：产物是真实 `.html` 文件（产物契约，不要改）。
-5. 本仓**不生成**门户首页 / 清单 / 根跳转页；`/` 就是 404，入口由下游项目负责。
+5. **镜像/默认构建不生成**门户首页 / 清单 / 根跳转页，`/` 就是 404；GitHub Pages 发布时由 `scripts/pages-landing.mjs` **额外**生成根导航（仅 Pages 产物），入口仍由下游项目负责。
 
 ## 2. 目录与事实来源
 
@@ -25,6 +25,7 @@ NitroWater 生态的**插件文档产物仓**：多个 Minecraft 插件各有一
 | 站点配置（base/outDir/i18n） | `plugins/<id>/docs/.vitepress/config.mts` |
 | nav/sidebar/主题 | `plugins/<id>/docs/.vitepress/theme/` |
 | 构建编排 | `scripts/build.mjs` |
+| Pages 根导航 | `scripts/pages-landing.mjs` |
 | 运行时 nginx 行为 | `docker/nginx.conf` |
 | 镜像构建 | `Dockerfile`（+ `docker/nginx.conf`） |
 | CI（构建 + 推镜像） | `.github/workflows/docs.yml` |
@@ -54,8 +55,10 @@ npm run docker:build       # 构建交付镜像 nitrowater-plugin-docs:local
 - `try_files $uri $uri/ $uri/index.html =404`：**不做 SPA fallback**，404 必须真 404。
 - HTML/JSON 不缓存（发布即生效），带 hash 的静态资源长缓存。
 - 需要挂到子路径时统一用 `DOCS_BASE_PREFIX` 重新构建，不要靠反向代理改写资源路径。
-- GitHub Pages 属于**唯一在仓内完成的发布**：`pages.yml` 以 `DOCS_BASE_PREFIX=nitrowater-plugin-docs` 构建并发布 `dist/`；
-  仍然**不生成**门户首页/清单/根跳转页，Pages 仓库根同样是 404。
+- GitHub Pages 属于**唯一在仓内完成的发布**：`pages.yml` 以 `DOCS_BASE_PREFIX=nitrowater-plugin-docs` + `DOCS_OUT_ROOT=dist` 构建，
+  再由 `scripts/pages-landing.mjs` 写入根导航/`404.html` 并发布 `dist/`。
+  - artifact 根 = 站点根 `/<repo>/`，所以磁盘必须是 `dist/<id>/`，**不能**再带一层仓库名（否则 URL 变成双层前缀）。
+  - 根导航只存在于 Pages 产物；镜像与默认 `npm run build` 仍然没有根首页。
 - 运行编排（compose / 反向代理 / 门户入口）**不在本仓**；镜像 CI 只负责构建并推送。
 
 ## 5. 内容与编码约定
@@ -94,17 +97,24 @@ codegraph explore "build.mjs dev.mjs plugin.json"
 **改内容**：只改 `plugins/<id>/docs/`，站内链接不带 base，图片放 `docs/public/`（引用 `/xxx.svg`）。
 **改主题**：`theme/custom.css` 用 VitePress CSS 变量；跨插件通用样式先在本插件验证，再考虑抽到共享层（目前**未**抽象共享主题）。
 **升级 VitePress**：改根 `package.json` → `npm install` → `npm run build` 全量验证 → 抽查中英文首页与深层页。
+**验证 Pages 布局**：
+```powershell
+$env:DOCS_BASE_PREFIX="nitrowater-plugin-docs"; $env:DOCS_OUT_ROOT="dist"; npm run build
+node scripts/pages-landing.mjs
+# 期望：dist/index.html + dist/<id>/，且 dist/<id>/index.html 的资源和链接带 /nitrowater-plugin-docs/<id>/
+```
 **排障**：
 - 资源 404 / 白屏 → 检查 `base` 是否与最终 URL 前缀一致（`dist/<id>/index.html` 里应有 `/<id>/assets/...`）。
 - 深层页面 404 → 检查链接是否被写成 `cleanUrls` 风格（无 `.html` 且无目录 index）。
 - 镜像内 404 → 检查 `docker/nginx.conf` 的 `try_files` 与产物路径。
 - Pages 资源 404 → 检查 `pages.yml` 的 `DOCS_BASE_PREFIX` 是否等于仓库名（项目站点路径 `/<repo>/<id>/`）。
-- Pages 首次发布失败 → 仓库 `Settings → Pages` 的 `Source` 必须为 **GitHub Actions**。
+- Pages 首次发布失败 → `pages.yml` 已用 `enablement: true` 自动创建站点；若组织策略阻止，手动把 `Settings → Pages` 的 `Source` 设为 **GitHub Actions**。
+- Pages 报 `Get Pages site failed` → 仓库尚未启用 Pages；先确认上面的 Source 设置，或检查仓库可见性/套餐是否支持 Pages。
 
 ## 9. 不要做
 
 - ❌ 在一个 VitePress 站点里给不同目录配不同 `base`（VitePress 不支持）。
-- ❌ 在本仓生成门户首页 / 文档清单 / 根路径跳转页（入口由 NitroWater 门户负责）。
+- ❌ 在镜像 / 默认构建产物里生成门户首页、文档清单或根路径跳转页（入口由 NitroWater 门户负责）；Pages 发布产物是唯一例外（`scripts/pages-landing.mjs`）。
 - ❌ 在 Markdown 里硬编码部署前缀或域名。
 - ❌ 把文档塞进 `nitrowater-web/public/`（会让文档更新依赖前端发版）。
 - ❌ 直接改 `dist/` 或用 `dist/` 作为事实来源；一切以 `plugins/**` 源码为准。

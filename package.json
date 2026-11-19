@@ -12,6 +12,7 @@
     "dev:velochatx": "node scripts/dev.mjs velochatx",
     "build": "node scripts/build.mjs",
     "build:velochatx": "node scripts/build.mjs velochatx",
+    "pages:landing": "node scripts/pages-landing.mjs",
     "preview": "vitepress preview plugins/velochatx/docs",
     "docker:build": "docker build -t nitrowater-plugin-docs:local ."
   },

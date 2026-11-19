@@ -4,12 +4,18 @@
  *
  *   dist/<id>/index.html  ->  /<id>/
  *
- * 本仓只做聚合：不生成门户首页、不生成清单，入口统一由 NitroWater 门户提供。
+ * 本仓只做聚合：构建默认不生成门户首页。GitHub Pages 的根导航由
+ * scripts/pages-landing.mjs 在发布前单独生成，镜像产物不受影响。
  *
  * 用法：
  *   npm run build                      # 全部插件，默认根级 /<id>/
  *   npm run build:velochatx            # 只构建一个
  *   DOCS_BASE_PREFIX=/docs npm run build   # 需要时挂到子路径 -> /docs/<id>/
+ *
+ * GitHub Pages（项目站点）：
+ *   DOCS_BASE_PREFIX=nitrowater-plugin-docs DOCS_OUT_ROOT=dist npm run build
+ *   -> 磁盘 dist/<id>/，链接前缀 /nitrowater-plugin-docs/<id>/
+ *   （artifact 根目录 = 站点根 /<repo>/，所以产物里不能再带一层仓库名）
  */
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -26,6 +32,11 @@ const trimSlashes = (value) => value.replace(/^\/+|\/+$/g, '')
 const prefix = trimSlashes(process.env.DOCS_BASE_PREFIX ?? '')
 const urlPrefix = prefix ? `/${prefix}/` : '/'
 const webRoot = path.join(distDir, prefix)
+// 产物根：默认把 URL 前缀也落进磁盘（nginx 直接以 dist 为根）。
+// Pages artifact 的根目录已经是 /<repo>/，用 DOCS_OUT_ROOT=dist 去掉这层重复前缀。
+const outRoot = process.env.DOCS_OUT_ROOT
+  ? path.resolve(root, process.env.DOCS_OUT_ROOT)
+  : webRoot
 
 const only = new Set(process.argv.slice(2))
 
@@ -71,11 +82,11 @@ if (!existsSync(vitepressBin)) {
 }
 
 await rm(distDir, { recursive: true, force: true })
-await mkdir(webRoot, { recursive: true })
+await mkdir(outRoot, { recursive: true })
 
 for (const plugin of plugins) {
   const siteDir = path.join(pluginsDir, plugin.id, 'docs')
-  const outDir = path.join(webRoot, plugin.id)
+  const outDir = path.join(outRoot, plugin.id)
   const base = `${urlPrefix}${plugin.id}/`
   console.log(`\n[build] ${plugin.id} -> ${base} (out: ${path.relative(root, outDir)})`)
   await runVitePress(['build', siteDir], {
@@ -86,7 +97,7 @@ for (const plugin of plugins) {
   })
 }
 
-console.log(`\n[build] 完成：${plugins.length} 个站点 -> ${path.relative(root, distDir)}`)
+console.log(`\n[build] 完成：${plugins.length} 个站点 -> ${path.relative(root, outRoot)}`)
 for (const plugin of plugins) {
   console.log(`[build]   ${urlPrefix}${plugin.id}/`)
 }

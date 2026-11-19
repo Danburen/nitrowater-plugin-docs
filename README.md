@@ -5,8 +5,9 @@ NitroWater 生态的**插件文档产物仓**：负责「文档源 → 静态产
 - 内容源：`plugins/<plugin-id>/docs/`（每个插件一套 VitePress 站点，各自一个 `base`）
 - 静态产物：`dist/<plugin-id>/...` → URL `/<plugin-id>/...`
 - 交付物：一个 nginx 静态镜像（`Dockerfile`），由下游（NitroWater）负责运行与路由
-- GitHub Pages：`https://<owner>.github.io/nitrowater-plugin-docs/<plugin-id>/`
-- 本仓**不生成**门户首页、清单、根跳转页；`/`（含 Pages 的仓库根）是 404，入口由下游决定
+- GitHub Pages：`https://<owner>.github.io/nitrowater-plugin-docs/`（根导航）与 `.../<plugin-id>/`
+- 镜像与构建产物**不生成**门户首页；`/` 是 404，入口由下游决定
+- Pages 发布产物额外生成根导航（`scripts/pages-landing.mjs`），不影响镜像契约
 
 ## 快速开始
 
@@ -21,8 +22,10 @@ npm run dev                 # 只起一个：npm run dev:velochatx
 npm run build
 
 # 按 GitHub Pages 的子路径构建（Windows PowerShell）
-$env:DOCS_BASE_PREFIX="nitrowater-plugin-docs"; npm run build
-# -> dist/nitrowater-plugin-docs/velochatx/ -> /nitrowater-plugin-docs/velochatx/
+$env:DOCS_BASE_PREFIX="nitrowater-plugin-docs"; $env:DOCS_OUT_ROOT="dist"; npm run build
+node scripts/pages-landing.mjs
+# -> dist/index.html（根导航）
+# -> dist/velochatx/ -> /nitrowater-plugin-docs/velochatx/
 
 # 构建交付镜像
 npm run docker:build        # nitrowater-plugin-docs:local
@@ -44,6 +47,7 @@ nitrowater-plugin-docs/
 │        └─ public/               # favicon/logo
 ├─ scripts/
 │  ├─ build.mjs                   # 遍历 plugins/*，逐站点构建到 dist/<id>/
+│  ├─ pages-landing.mjs           # Pages 专用根导航 + 404 页（镜像不使用）
 │  └─ dev.mjs                     # 多站点并行 dev server
 ├─ docker/nginx.conf              # 镜像内 nginx 配置
 ├─ Dockerfile                     # 两阶段构建：node 构建 -> nginx 托管
@@ -67,10 +71,14 @@ nitrowater-plugin-docs/
   plugins/velochatx  ->  dist/docs/velochatx/  ->  /docs/velochatx/
 
 GitHub Pages（项目站点）：
-  DOCS_BASE_PREFIX=nitrowater-plugin-docs npm run build
-  plugins/velochatx  ->  dist/nitrowater-plugin-docs/velochatx/
-                     ->  /nitrowater-plugin-docs/velochatx/
+  DOCS_BASE_PREFIX=nitrowater-plugin-docs DOCS_OUT_ROOT=dist npm run build
+  plugins/velochatx  ->  dist/velochatx/  ->  /nitrowater-plugin-docs/velochatx/
+  scripts/pages-landing.mjs -> dist/index.html（仅 Pages 产物）
 ```
+
+> [!IMPORTANT]
+> Pages 的 artifact 根目录就是站点根 `/<repo>/`，所以磁盘上**不能**再出现一层仓库名；
+> `DOCS_OUT_ROOT=dist` 保持 `dist/<id>/`，同时 `base` 仍是 `/<repo>/<id>/`。
 
 - `base` 必须**等于最终 URL 前缀**，由 `VITEPRESS_BASE` 或 `DOCS_BASE_PREFIX` + 插件 id 自动推导。
 - 内容里的站内链接写**站点绝对路径**（`/guide/intro/get-start`），VitePress 自动补 `base`；**不要手写部署前缀**。
@@ -109,11 +117,12 @@ docker run --rm -p 8085:80 nitrowater-plugin-docs:local
 docker pull ghcr.io/<owner>/nitrowater-plugin-docs:latest
 ```
 
-`.github/workflows/pages.yml`：push `main`（或手动触发）→ `npm ci` → 以 `DOCS_BASE_PREFIX=nitrowater-plugin-docs` 构建 → 发布 GitHub Pages。
+`.github/workflows/pages.yml`：push `main`（或手动触发）→ `npm ci` → 构建（`DOCS_BASE_PREFIX=nitrowater-plugin-docs`、`DOCS_OUT_ROOT=dist`）→ 生成根导航 → 发布 GitHub Pages。
 
-- 访问地址：`https://danburen.github.io/nitrowater-plugin-docs/velochatx/`
-- 首次使用需在仓库 `Settings → Pages` 把 `Source` 设为 **GitHub Actions**
-- 仓库根（`/nitrowater-plugin-docs/`）按约定返回 404，不生成门户首页
+- 根导航：`https://<owner>.github.io/nitrowater-plugin-docs/`
+- 插件文档：`https://<owner>.github.io/nitrowater-plugin-docs/velochatx/`
+- 首次运行会在 Pages 未启用时自动创建站点（`enablement: true`）；若组织策略阻止，手动到 `Settings → Pages` 把 `Source` 设为 **GitHub Actions**
+- 根导航与 `404.html` 只写入 Pages 发布产物，镜像与 `npm run build` 的产物不变（`/` 仍是 404）
 - 工作流使用 `fetch-depth: 0`，否则 `lastUpdated` 读不到 git 历史
 
 ## 与 `webs/velochatx-docs` 的关系
